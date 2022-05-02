@@ -9,6 +9,8 @@ use walkdir::WalkDir;
 
 use zip_utils::zip_dir;
 
+use serde_json::Value;
+
 fn main() {
     // Creating our output directory
     let out_path = Path::new("out/");
@@ -31,9 +33,16 @@ fn main() {
         
                     let mut contents = String::new();
                     ifile.read_to_string(&mut contents).unwrap();
+
+                    let json_obj: Value = match serde_json::from_str(&contents) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            println!("Resource pack compilation failed. File '{}' contains invalid JSON.", path.to_str().unwrap());
+                            std::process::exit(1);
+                        },
+                    };
                     
-                    let new_contents = remove_whitespace(&contents);
-                    ofile.write_all(new_contents.as_bytes()).unwrap();
+                    ofile.write_all(json_obj.to_string().as_bytes()).unwrap();
                 },
                 _ => {
                     fs::copy(&path, &new_file_path).unwrap();
@@ -53,26 +62,4 @@ fn main() {
     let outfile = File::create(&out_path.join("pack.zip")).unwrap();
 
     zip_dir(&mut walkdir.into_iter().filter_map(|e| e.ok()), srcdir, outfile, zip::CompressionMethod::Deflated).unwrap();
-}
-
-fn remove_whitespace(s: &String) -> String {
-    let mut result = String::new();
-    let mut in_string: bool = false; 
-
-    for c in s.chars() {
-        match c {
-            ' ' | '\t' | '\r' | '\n' => {
-                if in_string {
-                    result.push(c);
-                }
-            },
-            '"' => {
-                result.push(c);
-                in_string = !in_string;
-            },
-            _ => result.push(c),
-        }
-    }
-
-    result
 }
